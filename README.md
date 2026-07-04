@@ -1,100 +1,102 @@
+# BioNLI: A Retrieval-Grounded Natural Language Interface for Biological Databases
 
-# <font size=12px> BioNLI: A Semantic Natural Language Interface for Bioinformatics Databases</font>
+## Project Overview
 
-# <font colore=blue><b>Project Overview</font></b>
+BioNLI is a natural language interface that answers biological questions by querying live public databases directly, rather than generating text from model parameters. It integrates eight authoritative resources — NCBI Entrez, Ensembl REST, UniProt, STRING, Reactome, DisGeNET, EMBL-EBI Ontology Lookup Service (OLS), and RCSB PDB together with AlphaFold DB — behind a three-stage pipeline: query understanding, Gene Ontology-based semantic enrichment, and multi-source API execution.
 
-BioNLI (Bio-Natural Language Interface) is a robust, deterministic, and highly accurate semantic framework designed to bridge the gap between natural language queries and complex bioinformatics databases and APIs (such as NCBI Entrez and Ensembl REST).
+Because every answer is built entirely from retrieved database records, with a source URL and retrieval timestamp attached to each statement, BioNLI avoids the hallucination risk associated with purely generative question-answering systems, at the cost of a more constrained answer format.
 
-In the life sciences, data retrieval is often constrained by complex database schemas and specialized query languages. BioNLI solves this by using advanced NLP, biological pattern matching, and integrated Bio-Ontologies (Gene Ontology, PRO, ChEBI, and NCBI Taxonomy) to accurately parse user questions and generate precise, executable API queries.
+This repository contains the full source code and the evaluation query set for the BioNLI system.
 
-This repository contains the full source code, deployment files, and necessary test data for the BioNLI system.
+## Key Features
 
-# <b> Key Features</b>
+- **HGNC-anchored entity recognition**: gene mentions are resolved through a four-stage cascade (direct HGNC symbol match, synonym/previous-symbol lookup, a conditional BioBERT fallback, and a regex fallback covering sixteen high-priority symbols).
+- **Two-layer intent classification**: a keyword-weighted scorer assigns one of ten broad categories, followed by a fine-grained intent router (regex pattern matching with additive scoring) that selects one of fifteen question types and the data source(s) to query.
+- **Gene Ontology enrichment**: biological process and pathway entities are expanded with GO synonyms and parent terms (via `owlready2`) before the relevant APIs are called.
+- **Fully traceable answers**: every response section carries a direct source URL and retrieval timestamp back to the primary database record.
+- **Proof-of-concept evaluation**: 90% accuracy on a curated set of 30 gene-centric queries spanning six question categories (gene function, homology, chromosomal location, disease association, pathway membership, concept definition).
 
-Semantic Query Resolution: Translates complex queries like "find mouse homologs of TP53" or "show immune genes that interact with viruses" into structured database API calls.
+This is a research prototype evaluated on a small, developer-constructed query set. It has not yet been benchmarked against an independent dataset or evaluated in a user study; see the accompanying manuscript's Limitations section for details.
 
-Ontology-Driven Inference: Leverages a Bidirectional Transformer Layer 2 (BTL2) architecture integrated with Bio-Ontologies to manage semantic ambiguities and resolve inferential questions.
+## Architecture and Structure
 
-High Accuracy: Achieved 89% accuracy in entity recognition and successfully resolved 92% of all evaluation inquiries.
+The system is a Flask application with the core logic organized as a `core` package:
 
-Deterministic and Traceable: Unlike general Large Language Models (LLMs), BioNLI provides traceable results directly verified against authoritative public APIs.
+```
+bionli/
+├── app.py                      # Flask application: /, /api/ask, /api/stats, /api/health
+├── core/
+│   ├── hgnc_loader.py          # Loads and indexes HGNC-approved gene symbols
+│   ├── semantic_parser.py      # Entity recognition cascade + first-layer intent classifier
+│   ├── intent_router.py        # Fine-grained intent classification and data-source routing
+│   ├── structured_query.py     # Shared data classes for entities, intents, structured queries
+│   ├── ontology_integration.py # Gene Ontology loading and enrichment
+│   ├── data_sources.py         # NCBI, Ensembl, STRING, Reactome, DisGeNET, OLS, UniProt integrations
+│   ├── pdb_source.py           # Structure queries (RCSB PDB / AlphaFold DB)
+│   └── qa_engine.py            # Orchestration: routing, parallel API calls, caching, formatting
+├── templates/
+│   └── index.html              # Query submission interface
+├── requirements.txt
+└── README.md
+```
 
+## Getting Started
 
+### Prerequisites
 
-# <b>Architecture and Structure</b>
+- Python 3.9+
+- pip
 
-The BioNLI system is built on a modular Python architecture designed for maintainability and scalability.
-<pre>
-bio_nli/
-├── app.py                          # Main Flask application with routes
-├── core/                           # Core business logic
-│   ├── __init__.py                 # Package initialization
-│   ├── nlp_processor.py            # NLP processing & entity recognition
-│   ├── query_builder.py            # Query construction & payload building
-│   ├── database_connector.py       # Database & API connections
-│   ├── bio_services.py             # Biological service integrations
-│   └── ontology_manager.py         # Ontology management & reasoning
-├── config/                         # Configuration management
-│   ├── __init__.py
-│   ├── settings.py                 # App settings & environment config
-├── evaluation/                     # Evaluation suite
-│   ├── __init__.py
-│   ├── benchmark_questions.py      # Benchmark question sets & performance testing
-│   └── evaluate_system.py          # Overall system evaluation & metrics
-├── templates/                      # Jinja2 HTML templates
-│   ├── base.html                   # Base template
-│   ├── index.html                  # Home page
-│   ├── results.html                # Query results page
-│   └── error.html                  # Error page
-├── requirements.txt                # Python dependencies
-└── README.md                       # Project documentation
-</pre>
+### 1. Clone the repository
 
-# <b> Getting Started</b>
-
-Follow these instructions to get a copy of the project up and running on your local machine.
-
-<b>Prerequisites</b>
-
-You need Docker and Docker Compose installed on your system.
-
-# <b>1. Clone the Repository</b>
-<pre>
-git clone [https://github.com/UdaykumarMani24/bio_nli.git](https://github.com/UdaykumarMani24/bionli.git)
+```
+git clone https://github.com/UdaykumarMani24/bionli.git
 cd bionli
-</pre>
+```
 
+### 2. Install dependencies
 
-# <b>2. Configure Environment</b>
+```
+pip install -r requirements.txt
+```
 
-Review and update the settings in config/settings.py and config/databases.yaml as needed, particularly for any private database connections or API keys (though the system primarily relies on public APIs).
+### 3. Configure environment variables
 
-# <b>3. Build and Run with Docker</b>
+```
+export NCBI_EMAIL=your_email@example.com
+export USE_GPU=False
+export PORT=5000
+```
 
-The easiest way to run BioNLI is using the provided Dockerfile.
+### 4. Run the application
 
-# Build the Docker image (this may take a few minutes for dependency installation)
-docker build -t bionli-app .
+```
+python app.py
+```
 
-# Run the container (maps container port 5000 to host port 8000)
-docker run -d -p 8000:5000 --name bionli-instance bionli-app
+The web interface will be available at `http://localhost:5000`.
 
+## API
 
-# <b>4. Access the Application</b>
+| Endpoint | Method | Description |
+|---|---|---|
+| `/` | GET | Query submission interface |
+| `/api/ask` | POST | Submit a natural language question; returns a formatted, source-attributed answer |
+| `/api/stats` | GET | System statistics (indexed gene symbols, GO terms, data sources) |
+| `/api/health` | GET | Health check |
 
-Once the container is running, the BioNLI web interface will be available at:
+## Known Limitations
 
-http://localhost:8000
+- The evaluation set (30 queries) was constructed by the developers and covers only canonical, unambiguous gene symbols; it should be read as a functional proof of concept rather than a statistically powered benchmark.
+- The BioBERT fallback carries an untrained classification head and currently functions only as a contextual encoder; it did not contribute any entities to the evaluation set.
+- Multi-gene comparison queries are intended to be resolved independently per gene and merged; this path is under active verification against the current codebase.
 
-# <b> Contributing</b>
+See the accompanying manuscript for a full discussion of limitations and planned extensions.
 
-Contributions are welcome! If you have suggestions for improvements, new ontology integrations, or bug fixes, please open an issue or submit a pull request.
+## Contributing
 
+Contributions are welcome. Please open an issue or submit a pull request for bug fixes, additional data-source integrations, or evaluation improvements.
 
-# <b> Contact</b>
-
-For support or collaboration, please contact:
-
-Arunachalam Jothi: arunachalam@bioinfo.sastra.edu
+## Contact
 
 Udayakumar Mani: uthay@bioinfo.sastra.edu
